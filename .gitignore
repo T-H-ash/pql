@@ -1,0 +1,7 @@
+issacgym/
+issacgym-src/
+IsaacGymEnvs/
+outputs/
+wandb/
+
+__pycache__/
