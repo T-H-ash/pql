@@ -34,6 +34,7 @@ noise:
   tgt_pol_noise_bound: 0.2
 
 distl: False
+pal: False
 v_min: -10
 v_max: 10
 num_atoms: 51

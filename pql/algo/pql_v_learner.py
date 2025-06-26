@@ -19,6 +19,10 @@ from pql.utils.torch_util import soft_update
 
 @ray.remote(num_gpus=0.7)
 class PQLVLearner:
+    # FIXME: hardcoded priority config
+    min_priority = 1
+    alpha = 0.4
+
     def __init__(self, obs_dim, action_dim, cfg):
         self.cfg = cfg
         self.obs_dim = obs_dim
@@ -46,7 +50,11 @@ class PQLVLearner:
             self.loss_fnc = F.binary_cross_entropy
         else:
             self.critic = cri_class(self.obs_dim, self.action_dim).to(self.device)
-            self.loss_fnc = F.mse_loss
+            if self.cfg.algo.pal:
+                print("use PAL loss")
+                self.loss_fnc = self.pal_loss
+            else:
+                self.loss_fnc = F.mse_loss
         if self.cfg.artifact is not None:
             load_model(self.critic, "critic", cfg)
         self.critic_optimizer = torch.optim.AdamW(
@@ -132,9 +140,21 @@ class PQLVLearner:
                     )
 
             current_Q1, current_Q2 = self.critic.get_q1_q2(obs, action)
+
             critic_loss = self.loss_fnc(current_Q1, target_Q) + self.loss_fnc(
                 current_Q2, target_Q
             )
+            if self.cfg.algo.pal:
+                td_loss1 = current_Q1 - target_Q
+                td_loss2 = current_Q2 - target_Q
+                critic_loss /= (
+                    torch.max(td_loss1.abs(), td_loss2.abs())
+                    .clamp(min=self.min_priority)
+                    .pow(self.alpha)
+                    .mean()
+                    .detach()
+                )
+
             self.optimizer_update(self.critic_optimizer, critic_loss)
 
             self.loss_tracker.update(critic_loss.detach().item())
@@ -162,6 +182,14 @@ class PQLVLearner:
             grad_norm = None
         optimizer.step()
         return grad_norm
+
+    def pal_loss(self, current, target):
+        td = current - target
+        return torch.where(
+            td.abs() < self.min_priority,
+            (self.min_priority**self.alpha) * 0.5 * td.pow(2),
+            self.min_priority * td.abs().pow(1.0 + self.alpha) / (1.0 + self.alpha),
+        ).mean()
 
 
 @ray.remote

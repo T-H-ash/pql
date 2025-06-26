@@ -3,5 +3,6 @@ issacgym-src/
 IsaacGymEnvs/
 outputs/
 wandb/
+logs/
 
 __pycache__/
