@@ -146,13 +146,17 @@ def main(cfg: DictConfig):
 
         if len(counter) >= 10 and actor_update_times != 0 and critic_update_times != 0:
             time_interval = time.time() - counter[0]["time"]
-            sim_unit_time = time_interval / (sim_count - counter[0]["sim"])
+            sim_unit_time = time_interval / ((sim_count - counter[0]["sim"]) + 1e-6)
             critic_unit_time = time_interval / (
-                critic_update_times - counter[0]["critic"]
+                (critic_update_times - counter[0]["critic"]) + 1e-6
             )
-            actor_unit_time = time_interval / (actor_update_times - counter[0]["actor"])
+            actor_unit_time = time_interval / (
+                (actor_update_times - counter[0]["actor"]) + 1e-6
+            )
 
-            wait_time = sim_unit_time / cfg.algo.critic_sample_ratio - critic_unit_time
+            wait_time = (
+                sim_unit_time / (cfg.algo.critic_sample_ratio + 1e-6) - critic_unit_time
+            )
             if wait_time > 0:
                 if sim_wait_time == 0:
                     critic_wait_time = counter[0]["critic_wait_time"] + wait_time

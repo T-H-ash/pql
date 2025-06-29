@@ -1,5 +1,5 @@
 wandb:
-  project: scales-pred-pal-2
+  project: scales-test
   mode: 'online'
   tags: null
   group: null
