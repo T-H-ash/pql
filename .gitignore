@@ -1,8 +1,9 @@
-issacgym/
-issacgym-src/
+isaacgym/
+isaacgym-src/
 IsaacGymEnvs/
 outputs/
 wandb/
 logs/
 
 __pycache__/
+IsaacGym_Preview_4_Package.tar.gz

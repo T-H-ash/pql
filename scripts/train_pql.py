@@ -3,15 +3,16 @@ from collections import deque
 from copy import deepcopy
 from itertools import count
 
+import isaacgym  # isort: skip
+
 import hydra
-import isaacgym
 import ray
 import torch
+import wandb
 from loguru import logger
 from omegaconf import DictConfig
 
 import pql
-import wandb
 from pql.algo.pql_actor import PQLActor
 from pql.algo.pql_p_learner import PQLPLearner, asyn_p_learner
 from pql.algo.pql_v_learner import PQLVLearner, asyn_v_learner
