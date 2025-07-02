@@ -145,36 +145,42 @@ def main(cfg: DictConfig):
             old_act_id = act_id
 
         if len(counter) >= 10 and actor_update_times != 0 and critic_update_times != 0:
-            time_interval = time.time() - counter[0]["time"]
-            sim_unit_time = time_interval / ((sim_count - counter[0]["sim"]) + 1e-6)
-            critic_unit_time = time_interval / (
-                (critic_update_times - counter[0]["critic"]) + 1e-6
-            )
-            actor_unit_time = time_interval / (
-                (actor_update_times - counter[0]["actor"]) + 1e-6
-            )
+            sim_diff = sim_count - counter[0]["sim"]
+            critic_diff = critic_update_times - counter[0]["critic"]
+            actor_diff = actor_update_times - counter[0]["actor"]
 
-            wait_time = (
-                sim_unit_time / (cfg.algo.critic_sample_ratio + 1e-6) - critic_unit_time
-            )
-            if wait_time > 0:
-                if sim_wait_time == 0:
-                    critic_wait_time = counter[0]["critic_wait_time"] + wait_time
-                else:
-                    sim_wait_time = max(0, counter[0]["sim_wait_time"] - wait_time)
+            # 差分がゼロのときはスキップ
+            if sim_diff == 0 or critic_diff == 0 or actor_diff == 0:
+                pass  # このループでは待ち時間計算をスキップ
             else:
-                if critic_wait_time == 0:
-                    sim_wait_time = counter[0]["sim_wait_time"] - wait_time
-                else:
-                    critic_wait_time = max(
-                        0, counter[0]["critic_wait_time"] + wait_time
-                    )
+                time_interval = time.time() - counter[0]["time"]
+                sim_unit_time = time_interval / sim_diff
+                critic_unit_time = time_interval / critic_diff
+                actor_unit_time = time_interval / actor_diff
 
-            wait_time = critic_unit_time * cfg.algo.critic_actor_ratio - actor_unit_time
-            if wait_time > 0:
-                actor_wait_time = counter[0]["actor_wait_time"] + wait_time
-            else:
-                actor_wait_time = max(0, counter[0]["actor_wait_time"] + wait_time)
+                wait_time = (
+                    sim_unit_time / cfg.algo.critic_sample_ratio - critic_unit_time
+                )
+                if wait_time > 0:
+                    if sim_wait_time == 0:
+                        critic_wait_time = counter[0]["critic_wait_time"] + wait_time
+                    else:
+                        sim_wait_time = max(0, counter[0]["sim_wait_time"] - wait_time)
+                else:
+                    if critic_wait_time == 0:
+                        sim_wait_time = counter[0]["sim_wait_time"] - wait_time
+                    else:
+                        critic_wait_time = max(
+                            0, counter[0]["critic_wait_time"] + wait_time
+                        )
+
+                wait_time = (
+                    critic_unit_time * cfg.algo.critic_actor_ratio - actor_unit_time
+                )
+                if wait_time > 0:
+                    actor_wait_time = counter[0]["actor_wait_time"] + wait_time
+                else:
+                    actor_wait_time = max(0, counter[0]["actor_wait_time"] + wait_time)
 
         counter.append(
             {

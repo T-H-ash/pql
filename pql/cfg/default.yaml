@@ -16,6 +16,7 @@ rl_device: ${.device}
 graphics_device_id: 0
 
 seed: 42
+run_id: 0
 max_step: null
 max_time: 3600 # in seconds
 eval_headless: True
