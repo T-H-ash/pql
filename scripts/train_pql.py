@@ -149,9 +149,8 @@ def main(cfg: DictConfig):
             critic_diff = critic_update_times - counter[0]["critic"]
             actor_diff = actor_update_times - counter[0]["actor"]
 
-            # 差分がゼロのときはスキップ
             if sim_diff == 0 or critic_diff == 0 or actor_diff == 0:
-                pass  # このループでは待ち時間計算をスキップ
+                pass
             else:
                 time_interval = time.time() - counter[0]["time"]
                 sim_unit_time = time_interval / sim_diff
