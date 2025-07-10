@@ -1,0 +1,16 @@
+{
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    },
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.tabSize": 4,
+    "editor.rulers": [127],
+    "diffEditor.ignoreTrimWhitespace": false
+  },
+  "ruff.importStrategy": "useBundled",
+  "ruff.configuration": "~/pyproject.toml",
+  "ruff.trace.server": "messages"
+}

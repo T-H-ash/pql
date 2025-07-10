@@ -13,3 +13,4 @@ runs/*
 !runs/template.sh
 
 scales_predictably/*.json
+scales_predictably/scales-*/
