@@ -4,18 +4,71 @@ from typing import ClassVar, List
 
 OUT = Path("./scripts")
 TEMPLATE = Path("./template.sh")
-BASE_WANDB_PROJECT = f"scales-{7:02}"
+BASE_WANDB_PROJECT = f"scales-{6:02}"
 
 
 class KeyMaker:
-    UTD_RATIO_INVERSE: ClassVar[List[int]] = [2048, 4096, 8192, 16384]
-    BATCH_SIZE: ClassVar[List[int]] = [512, 1024, 2048, 4096, 8192]
-    SEED: ClassVar[List[int]] = [42, 43, 44, 45, 46]
-    USE_PAL: ClassVar[List[bool]] = [False, True]
+    # UTD_RATIO_INVERSE: ClassVar[List[int]] = [
+    #     1024.0,
+    #     2048.0,
+    #     4096.0,
+    #     8192.0,
+    #     16384.0,
+    #     32768.0,
+    #     65536.0,
+    # ]
+    # BATCH_SIZE: ClassVar[List[int]] = [
+    #     17523.106534479004,
+    #     8747.328294799401,
+    #     4366.563208780558,
+    #     2179.7368995070074,
+    #     1088.0989748455502,
+    #     543.1661863997047,
+    #     271.14215973769893,
+    # ]
+    # LEARNING_RATE: ClassVar[List[int]] = [
+    #     0.0004871808008772118,
+    #     0.00035277266228317167,
+    #     0.0002554463374383312,
+    #     0.0001849713378818428,
+    #     0.00013393966099067188,
+    #     9.69870953615302e-05,
+    #     7.022935997517315e-05,
+    # ]
+    # SEED: ClassVar[List[int]] = [42, 43, 44]
+    # USE_PAL: bool = False
 
-    _DEFAULT_BATCH_SIZE: int = 2048
-    _DEFAULT_LEARNING_RATE: float = 0.0002
-    _DEFAULT_REPLAY_BUFFER_SIZE: int = int(1e5)
+    UTD_RATIO_INVERSE: ClassVar[List[int]] = [
+        1024.0,
+        2048.0,
+        4096.0,
+        8192.0,
+        16384.0,
+        32768.0,
+        65536.0,
+    ]
+    BATCH_SIZE: ClassVar[List[int]] = [
+        10593.843174898848,
+        7291.791239464436,
+        5018.973624785415,
+        3454.5827518975707,
+        2377.805280899127,
+        1636.6543689729554,
+        1126.516769474657,
+    ]
+    LEARNING_RATE: ClassVar[List[int]] = [
+        0.000350324524872686,
+        0.00031417588025615056,
+        0.00028175727568773186,
+        0.0002526838226354214,
+        0.00022661034773920896,
+        0.0002032272947547479,
+        0.0001822570493597414,
+    ]
+    SEED: ClassVar[List[int]] = [42, 43, 44]
+    USE_PAL: bool = True
+
+    _DEFAULT_REPLAY_BUFFER_SIZE: int = int(1e6)
 
     def __init__(self, *, base_wandb_project: str):
         self.base_wandb_project = base_wandb_project
@@ -27,8 +80,8 @@ class KeyMaker:
         seed: int,
         utd_ratio_inverse: int,
         use_pal: bool,
-        batch_size: int = _DEFAULT_BATCH_SIZE,
-        learning_rate: float = _DEFAULT_LEARNING_RATE,
+        batch_size: int,
+        learning_rate: float,
         replay_buffer_size: int = _DEFAULT_REPLAY_BUFFER_SIZE,
     ):
         key = {
@@ -44,7 +97,7 @@ class KeyMaker:
 
     def get_wandb_project(self, use_pal: bool) -> str:
         type = "pal" if use_pal else "nopal"
-        return f"{self.base_wandb_project}-{type}"
+        return f"{self.base_wandb_project}-{type}-step2"
 
 
 def create_script(keys, out_path: Path):
@@ -81,24 +134,21 @@ def create_script(keys, out_path: Path):
 
 def main():
     key_maker = KeyMaker(base_wandb_project=BASE_WANDB_PROJECT)
-    out_root = Path(f"./scripts-{BASE_WANDB_PROJECT}")
+    out_root = Path(f"./scripts-{BASE_WANDB_PROJECT}-step2")
     out_root.mkdir(parents=True, exist_ok=False)
 
-    for use_pal in KeyMaker.USE_PAL:
-        for seed in KeyMaker.SEED:
-            for utd_ratio_inverse in KeyMaker.UTD_RATIO_INVERSE:
-                args = {
-                    "seed": seed,
-                    "utd_ratio_inverse": utd_ratio_inverse,
-                    "use_pal": use_pal,
-                }
-
-                key_maker.create(**args, learning_rate=0.0001)
-
-                for batch_size in KeyMaker.BATCH_SIZE:
-                    key_maker.create(**args, batch_size=batch_size)
-
-                key_maker.create(**args, learning_rate=0.0003)
+    for seed in KeyMaker.SEED:
+        for utd_ratio_inverse, batch_size, lr in zip(
+            KeyMaker.UTD_RATIO_INVERSE, KeyMaker.BATCH_SIZE, KeyMaker.LEARNING_RATE
+        ):
+            args = {
+                "seed": seed,
+                "utd_ratio_inverse": int(utd_ratio_inverse),
+                "learning_rate": lr,
+                "batch_size": int(batch_size),
+                "use_pal": KeyMaker.USE_PAL,
+            }
+            key_maker.create(**args)
 
     scripts = []
 
