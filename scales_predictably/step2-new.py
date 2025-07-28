@@ -28,6 +28,7 @@ def extract_wandb_runs(project, entity, save_path: Path):
     for run in runs:
         try:
             num_envs = run.config.get("num_envs", None)
+            task = run.config.get("task", {}).get("name", "N/A")
             seed = run.config.get("seed", None)
 
             config_algo = run.config.get("algo", {})
@@ -46,11 +47,11 @@ def extract_wandb_runs(project, entity, save_path: Path):
 
         print(
             f"Run ID: {run.id}, Name: {run.name:<25}, State: {run.state:<10} | "
-            f"batch_size: {batch_size:<5} | actor_lr: {actor_lr} | "
+            f"task: {task} | batch_size: {batch_size:<5} | actor_lr: {actor_lr} | "
             f"seed={seed} | critic_sample_ratio={critic_ratio} | "
             f"utd_ratio_inverse={utd_ratio_inverse}",
         )
-        name = f"SE={seed}-UT={int(utd_ratio_inverse)}-BA={batch_size}-LE={actor_lr}-US={use_pal}"
+        name = f"TA={task}-SE={seed}-UT={int(utd_ratio_inverse)}-BA={batch_size}-LE={actor_lr:.10f}-US={use_pal}"
 
         count, eval_returns, global_steps = 0, [], []
         history = run.history(keys=["eval/return"], pandas=False)
@@ -94,11 +95,13 @@ def extract_wandb_runs(project, entity, save_path: Path):
 
 
 class Analyzer:
-    UTD_INV = [1024, 2048, 4096, 8192, 16384, 32768, 65536]
+    UTD_INV = [256.0, 512.0, 1024.0, 2048.0, 4096.0]
 
-    NUM_REQUIRED_SEEDS = 3
+    NUM_REQUIRED_SEEDS = 10
     NUM_BOOSTING_ITERATIONS = 100
-    REWARD_THRESHOLD = [1000 * i for i in range(1, 8)]
+    # REWARD_THRESHOLD = np.linspace(1000, 8000, 29).tolist()
+    # REWARD_THRESHOLD = np.linspace(1000, 8000, 15).tolist()
+    REWARD_THRESHOLD = np.linspace(1000, 8000, 8).tolist()
 
     MODEL_SIZE = 179_592
 
@@ -115,9 +118,10 @@ class Analyzer:
         self.analyze()
 
     def optimal_batch_size(self, utd):
-        return 21378074.65602386 * (utd**1.0219029717994919)  # scales-05-nopal
+        # return 21378074.65602386 * (utd**1.0219029717994919)  # scales-05-nopal
         # return 419256.5906890582 * (utd**0.5329921396310846)  # scales-06-pal
         # return 4658521.900306575 * (utd**0.8684615106218979)  # scales-08-pal
+        return 68545.94852149911 * (utd**0.42568899102674584)  # scales-10-nopal
 
     def analyze(self):
         data_requirements = {}
@@ -143,6 +147,7 @@ class Analyzer:
                     utd_inv_list.append(utd_inv)
                     data_req_list.append(data_req[threshold])
 
+            # data_req_func, data_req_formula = self.generalized_power_law_fit(utd_inv=utd_inv_list, metrics=data_req_list)
             data_req_func, data_req_formula = self.power_law_fit(utd_inv=utd_inv_list, metrics=data_req_list)
             print(f"Data requirement for threshold={threshold}: {utd_inv_list}, {data_req_list} → {data_req_formula}")
             data_req_dict[threshold] = {
@@ -154,7 +159,7 @@ class Analyzer:
 
         # plot the data efficiency curve
         fig, ax = plt.subplots(figsize=(10, 6))
-        color_list = list(mcolors.TABLEAU_COLORS.values())
+        color_list = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.CSS4_COLORS.values())
         color_iter = iter(color_list)
         for threshold, data_req in data_req_dict.items():
             color = next(color_iter)
@@ -168,7 +173,7 @@ class Analyzer:
             y_vals = data_req["function"](x_vals)
             ax.loglog(x_vals, y_vals, color=color, label=f"Threshold {threshold}")
         ax.set_xticks(1 / np.array(self.UTD_INV))
-        ax.set_xticklabels([f"1/2^{int(math.log(k))}" for k in self.UTD_INV])
+        ax.set_xticklabels([f"1/2^{int(math.log2(k))}" for k in self.UTD_INV])
 
         # FIXME: tmp
         # ax.set_ylim(bottom=float("-0.1e9"), top=float("1e9"))
@@ -176,7 +181,7 @@ class Analyzer:
         ax.set_xlabel("UTD ratio")
         ax.set_ylabel("Minimum Data to Achieve Reward Threshold")
         ax.set_title("Data Efficiency Curve")
-        ax.legend()
+        ax.legend(loc="center right", bbox_to_anchor=(-0.2, 0.5))
         plt.tight_layout()
         plt.savefig(Path(self.project) / "data_efficiency_curve.png")
         plt.close(fig)
@@ -187,11 +192,8 @@ class Analyzer:
 
         # plot the data efficiency curve
         fig, ax = plt.subplots(figsize=(10, 6))
-        color_list = list(mcolors.TABLEAU_COLORS.values())
-        color_iter = iter(color_list)
-        for threshold, data_req in data_req_dict.items():
-            color = next(color_iter)
-
+        color_list = list(mcolors.TABLEAU_COLORS.values()) + list(mcolors.CSS4_COLORS.values())
+        for (threshold, data_req), color in zip(data_req_dict.items(), color_list):
             # Plot the data points
             x_vals_discrete = 1 / np.array(data_req["utd_inv"])
             ax.plot(C_J(x_vals_discrete, threshold), data_req["data_req"], "o", color=color)
@@ -202,7 +204,7 @@ class Analyzer:
 
             x_vals = C_J(utds, threshold)
             y_vals = data_req["function"](utds)
-            ax.loglog(x_vals, y_vals, color=color, label=f"Threshold {threshold}")
+            ax.plot(x_vals, y_vals, color=color, label=f"Threshold {threshold}")
 
         # FIXME: tmp
         # ax.set_ylim(bottom=float("-0.01"), top=math.log(float("0.25")))
@@ -211,6 +213,10 @@ class Analyzer:
         ax.set_ylabel("DJ: Data until J")
         ax.set_title("Scalability Curve")
         ax.legend()
+
+        plt.xscale("log")
+        # plt.yscale("log")
+
         plt.tight_layout()
         plt.savefig(Path(self.project) / "scalability_curve.png")
         plt.close(fig)
@@ -318,7 +324,7 @@ class Analyzer:
             return a * (1 + np.power(np.clip(x / b, 1e-8, None), c))
 
         # Initial guess: a=max(y) / 10, b=0.01, c=0
-        popt, _ = curve_fit(func, x, y, p0=[y.max() / 10, 1, 0.0], maxfev=1000000)
+        popt, _ = curve_fit(func, x, y, p0=[y.max() / 10, 10, -1.0], maxfev=1000000)
         a, b, c = popt
         formula = f"y = {a} * (1 + (x/{b})^{c})"
         print(f"Fitted formula: {formula}")

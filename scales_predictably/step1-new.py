@@ -29,6 +29,7 @@ def extract_wandb_runs(project, entity, save_path: Path):
     for run in runs:
         try:
             num_envs = run.config.get("num_envs", None)
+            task = run.config.get("task", {}).get("name", "N/A")
             seed = run.config.get("seed", None)
 
             config_algo = run.config.get("algo", {})
@@ -47,11 +48,11 @@ def extract_wandb_runs(project, entity, save_path: Path):
 
         print(
             f"Run ID: {run.id}, Name: {run.name:<25}, State: {run.state:<10} | "
-            f"batch_size: {batch_size:<5} | actor_lr: {actor_lr} | "
+            f"task: {task} | batch_size: {batch_size:<5} | actor_lr: {actor_lr} | "
             f"seed={seed} | critic_sample_ratio={critic_ratio} | "
             f"utd_ratio_inverse={utd_ratio_inverse}",
         )
-        name = f"SE={seed}-UT={int(utd_ratio_inverse)}-BA={batch_size}-LE={actor_lr}-US={use_pal}"
+        name = f"TA={task}-SE={seed}-UT={int(utd_ratio_inverse)}-BA={batch_size}-LE={actor_lr:.10f}-US={use_pal}"
 
         count, eval_returns, global_steps = 0, [], []
         history = run.history(keys=["eval/return"])
@@ -95,13 +96,14 @@ def extract_wandb_runs(project, entity, save_path: Path):
 
 
 class Analyzer:
-    UTD_INV = [1024, 4096, 8192, 32768]
-    BATCH_SIZE = [(512, 0.0002), (1024, 0.0002), (2048, 0.0002), (4096, 0.0002), (8192, 0.0002)]
-    LR = [(2048, 0.0001), (2048, 0.0002), (2048, 0.0003)]
+    UTD_INV = [512, 1024, 2048, 4096]
+    BATCH_SIZE = [(2048, 0.0003), (4096, 0.0003), (8192, 0.0003), (16384, 0.0003)]
+    LR = [(4096, 0.0001), (4096, 0.0003), (4096, 0.0009), (4096, 0.0027)]
 
     NUM_REQUIRED_SEEDS = 4
     NUM_BOOSTING_ITERATIONS = 100
-    REWARD_THRESHOLD = [100 * i for i in range(1, 10)]
+    # REWARD_THRESHOLD = [1000 * i for i in range(1, 10)]
+    REWARD_THRESHOLD = [8000]
 
     def __init__(self, project):
         self.project = project
@@ -265,7 +267,7 @@ class Analyzer:
             plt.legend()
             plt.tight_layout()
             # Set y-axis limits with 5% margin on both sides, but max is hardcoded
-            y_min, y_max = 0, 900
+            y_min, y_max = 0, 14000
             y_range = y_max - y_min
             margin = y_range * 0.05
             plt.ylim(y_min - margin, y_max + margin)
