@@ -1,9 +1,9 @@
+import isaacgym  # isort: skip  # noqa: F401
+
 import time
 from collections import deque
 from copy import deepcopy
 from itertools import count
-
-import isaacgym  # isort: skip
 
 import hydra
 import ray
@@ -29,7 +29,9 @@ from pql.utils.isaacgym_util import create_task_env
 @hydra.main(config_path=pql.LIB_PATH.joinpath("cfg").as_posix(), config_name="default")
 def main(cfg: DictConfig):
     ray.init(
-        num_gpus=cfg.algo.num_gpus, num_cpus=cfg.algo.num_cpus, include_dashboard=False
+        num_gpus=cfg.algo.num_gpus,
+        num_cpus=cfg.algo.num_cpus,
+        include_dashboard=False,
     )
     if cfg.algo.num_gpus == 1:
         cfg.algo.v_learner_gpu = 0
@@ -46,10 +48,14 @@ def main(cfg: DictConfig):
 
     pql_actor = PQLActor(env, cfg)
     pql_v_learner = PQLVLearner.remote(
-        env.observation_space.shape, env.action_space.shape[0], cfg
+        env.observation_space.shape,
+        env.action_space.shape[0],
+        cfg,
     )
     pql_p_learner = PQLPLearner.remote(
-        env.observation_space.shape, env.action_space.shape[0], cfg
+        env.observation_space.shape,
+        env.action_space.shape[0],
+        cfg,
     )
     critic, critic_update_times, critic_loss = ray.get(pql_v_learner.start.remote())
     actor, actor_update_times, actor_loss = ray.get(pql_p_learner.start.remote())
@@ -94,21 +100,18 @@ def main(cfg: DictConfig):
             "sim_wait_time": sim_wait_time,
             "critic_wait_time": critic_wait_time,
             "actor_wait_time": actor_wait_time,
-        }
+        },
     )
 
     logger.info(
-        f"{'Steps':>12s}"
-        f"{'Time':>12s}"
-        f"{'critic_loss':>12s}"
-        f"{'actor_loss':>12s}"
-        f"{'v-updates':>12s}"
-        f"{'p-updates':>12s}"
+        f"{'Steps':>12s}{'Time':>12s}{'critic_loss':>12s}{'actor_loss':>12s}{'v-updates':>12s}{'p-updates':>12s}",
     )
 
     for iter_t in count():
         p_data, v_data, steps = pql_actor.explore_env(
-            env, cfg.algo.horizon_len, random=False
+            env,
+            cfg.algo.horizon_len,
+            random=False,
         )
         global_steps += steps
         sim_count += 1
@@ -157,25 +160,21 @@ def main(cfg: DictConfig):
                 critic_unit_time = time_interval / critic_diff
                 actor_unit_time = time_interval / actor_diff
 
-                wait_time = (
-                    sim_unit_time / cfg.algo.critic_sample_ratio - critic_unit_time
-                )
+                wait_time = sim_unit_time / cfg.algo.critic_sample_ratio - critic_unit_time
                 if wait_time > 0:
                     if sim_wait_time == 0:
                         critic_wait_time = counter[0]["critic_wait_time"] + wait_time
                     else:
                         sim_wait_time = max(0, counter[0]["sim_wait_time"] - wait_time)
+                elif critic_wait_time == 0:
+                    sim_wait_time = counter[0]["sim_wait_time"] - wait_time
                 else:
-                    if critic_wait_time == 0:
-                        sim_wait_time = counter[0]["sim_wait_time"] - wait_time
-                    else:
-                        critic_wait_time = max(
-                            0, counter[0]["critic_wait_time"] + wait_time
-                        )
+                    critic_wait_time = max(
+                        0,
+                        counter[0]["critic_wait_time"] + wait_time,
+                    )
 
-                wait_time = (
-                    critic_unit_time * cfg.algo.critic_actor_ratio - actor_unit_time
-                )
+                wait_time = critic_unit_time * cfg.algo.critic_actor_ratio - actor_unit_time
                 if wait_time > 0:
                     actor_wait_time = counter[0]["actor_wait_time"] + wait_time
                 else:
@@ -190,7 +189,7 @@ def main(cfg: DictConfig):
                 "sim_wait_time": sim_wait_time,
                 "critic_wait_time": critic_wait_time,
                 "actor_wait_time": actor_wait_time,
-            }
+            },
         )
         time.sleep(sim_wait_time)
 
@@ -218,10 +217,13 @@ def main(cfg: DictConfig):
                 f"{log_info['train/critic_loss']:12.2f}"
                 f"{log_info['train/actor_loss']:12.2f}"
                 f"{log_info['train/critic_update_times']:12.2f}"
-                f"{log_info['train/actor_update_times']:12.2f}"
+                f"{log_info['train/actor_update_times']:12.2f}",
             )
             evaluator.eval_policy(
-                pql_actor.actor, critic, normalizer=pql_actor.obs_rms, step=global_steps
+                pql_actor.actor,
+                critic,
+                normalizer=pql_actor.obs_rms,
+                step=global_steps,
             )
 
         if evaluator.check_if_should_stop(global_steps):
@@ -229,4 +231,7 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
+    import sys
+
+    print(sys.argv)
     main()

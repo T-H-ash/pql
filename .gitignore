@@ -12,5 +12,12 @@ runs/*
 !runs/create_shell*.py
 !runs/template.sh
 
+runs_manager/*
+!runs_manager/create_shell*.py
+!runs_manager/template.sh
+
 scales_predictably/*.json
 scales_predictably/scales-*/
+
+scaling_prediction/runs/
+scaling_prediction/.env
