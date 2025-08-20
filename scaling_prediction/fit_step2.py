@@ -224,7 +224,7 @@ class Figure:
             sc = ax[j].scatter(all_x, all_y, c=all_c, cmap=cmap, norm=norm)
             fig.colorbar(sc, ax=ax[j], label="Return Threshold")
             for min_curve, cj_curve, color in curves:
-                ax[j].plot(min_curve, cj_curve, linestyle="--", color=color)
+                ax[j].plot(min_curve, cj_curve, linestyle="-", color=color, alpha=0.7)
         ax[0].set(xlabel="Minimum Data Step", ylabel="Compute (CJ)", title="Compute vs Data (Linear)")
         ax[1].set(
             xlabel="Minimum Data Step",
@@ -234,12 +234,20 @@ class Figure:
             yscale="log",
         )
 
-    def save(self, base_dir: Path):
+    def set_lims(self, xlim=None, ylim=None):
+        fig, axes = self.compute_vs_data["fit"]
+        for ax in axes:
+            if xlim is not None:
+                ax.set_xlim(xlim)
+            if ylim is not None:
+                ax.set_ylim(ylim)
+
+    def save(self, base_dir: Path, *, filename_prefix=""):
         base_dir.mkdir(parents=True, exist_ok=True)
 
-        self.learning_curve[0].savefig(base_dir / "step2-learning_curve.png")
-        self.data["fit"][0].savefig(base_dir / "step2-data_fit.png")
-        self.compute_vs_data["fit"][0].savefig(base_dir / "step2-compute_vs_data_fit.png")
+        self.learning_curve[0].savefig(base_dir / f"{filename_prefix}step2-learning_curve.png")
+        self.data["fit"][0].savefig(base_dir / f"{filename_prefix}step2-data_fit.png")
+        self.compute_vs_data["fit"][0].savefig(base_dir / f"{filename_prefix}step2-compute_vs_data_fit.png")
 
         plt.close("all")
 
@@ -265,5 +273,38 @@ def main():
     analyzer.fig.save(base_dir)
 
 
+def batch_run():
+    WANDB_PROJECTS = [
+        "scales_01-task=Ant-buffsize=1M-num_envs=1024-per=none-step2",
+        "scales_01-task=Ant-buffsize=1M-num_envs=4096-per=none-step2",
+        "scales_01-task=Ant-buffsize=4M-num_envs=4096-per=none-step2",
+        "scales_01-task=Ant-buffsize=4M-num_envs=16384-per=none-step2",
+    ]
+
+    args = get_args()
+
+    for wandb_project in WANDB_PROJECTS:
+        base_dir = get_base_dir(wandb_project, args.out_dir)
+        json_path = base_dir / "runs-step2.json"
+        if not args.skip_load:
+            read_wandb_runs(
+                entity=args.wandb_entity,
+                project=wandb_project,
+                save_path=json_path,
+                elapsed_time_threshold=ELAPSED_TIME_THRESHOLD,
+            )
+        else:
+            print(f"Use existing runs from {json_path}")
+
+        step1_fit = get_fit_functions(base_dir, args.step1_fit_filename)
+        analyzer = Analyzer(json_path, step1_fit, eval_threshold_range=(3000.0, 10000.0), num_eval_points=200)
+        analyzer.run_minimum_data_fit()
+
+        analyzer.fig.set_lims(xlim=(7e5, 8e8), ylim=(5e13, 1e17))
+        # analyzer.fig.set_lims(xlim=(1e7, 1e8), ylim=(1e14, 1e16))
+        analyzer.fig.save(base_dir, filename_prefix="lim_")
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    batch_run()
