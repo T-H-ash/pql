@@ -42,23 +42,24 @@ class GridParam:
     wandb_project_key: str
 
     # x-axis
-    UTD_RATIO_INVERSE = [128, 256, 512, 1024, 2048, 4096, 8192, 16384]
+    UTD_RATIO_INVERSE = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
 
     # seed
     SEED = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
 
     def __post_init__(self):
         """
-        wandb_project_key: <prefix>-task=<task_name>-buffsize=<buffer_size>-per=<per_type>
+        wandb_project_key: <prefix>-task=<task_name>-buffsize=<buffer_size>-num_envs=<num_envs>-per=<per_type>
         """
-        pattern = r"task=([^-\s]+)-buffsize=([^-\s]+)-per=([^-\s]+)"
+        pattern = r"task=([^-\s]+)-buffsize=([^-\s]+)-num_envs=([^-\s]+)-per=([^-\s]+)"
         match = re.search(pattern, self.wandb_project_key)
         if match:
-            task, buffsize, per = match.groups()
+            task, buffsize, num_envs, per = match.groups()
 
             # other configs
             self.TASK = task
             self.BUFFER_SIZE = int(float(buffsize.rstrip("M")) * 1_000_000)
+            self.NUM_ENVS = int(num_envs)
 
             if per == "pal":
                 self.USE_PAL = True

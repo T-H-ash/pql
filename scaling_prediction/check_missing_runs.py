@@ -40,6 +40,24 @@ def read_wandb_runs(entity, project):
             not_successful_runs.append(shell_script_name)
             continue
 
+        elapsed_time = [step["elapsed_time"] for step in run.history(keys=["elapsed_time"], samples=100, pandas=False)]
+        if not elapsed_time or max(elapsed_time) < ELAPSED_TIME_THRESHOLD:
+            not_successful_runs.append(shell_script_name)
+            continue
+
+        count, eval_returns, global_steps = 0, [], []
+        for row in run.history(keys=["eval/return"], pandas=False):
+            if row["eval/return"] is None:
+                continue
+
+            eval_returns.append(row["eval/return"])
+            global_steps.append(row["_step"])
+            count += 1
+
+        if count == 0:
+            print(f"Skipping {shell_script_name} due to no eval returns found.")
+            continue
+
         successful_runs.append(shell_script_name)
 
     print(f"{len(successful_runs)} successful runs found. {len(not_successful_runs)} runs skipped due to short runtime.")

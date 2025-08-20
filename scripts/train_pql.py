@@ -41,6 +41,7 @@ def main(cfg: DictConfig):
     set_random_seed(cfg.seed)
     wandb_run = init_wandb(cfg)
     env = create_task_env(cfg)
+    start_time = time.time()
 
     sim_device = torch.device(f"{cfg.sim_device}")
     v_learner_device = torch.device(f"cuda:{cfg.algo.v_learner_gpu}")
@@ -194,6 +195,7 @@ def main(cfg: DictConfig):
         time.sleep(sim_wait_time)
 
         log_info = {
+            "elapsed_time": time.time() - start_time,
             "train/critic_loss": critic_loss,
             "train/actor_loss": actor_loss,
             "train/return": pql_actor.return_tracker.mean(),

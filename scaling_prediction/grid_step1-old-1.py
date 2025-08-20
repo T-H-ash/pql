@@ -50,13 +50,13 @@ class GridParam:
     TASK = "Ant"
     NUM_ENVS = 4096
     BUFFER_SIZE = int(4e6)
-    USE_PAL = True
+    USE_PAL = False
 
 
 def get_wandb_project_key(prefix, grid_param):
-    task, buffer_size, use_pal, num_envs = grid_param.TASK, grid_param.BUFFER_SIZE, grid_param.USE_PAL, grid_param.NUM_ENVS
+    task, buffer_size, use_pal = grid_param.TASK, grid_param.BUFFER_SIZE, grid_param.USE_PAL
     per_type = "pal" if use_pal else "none"
-    return f"{prefix}-task={task}-buffsize={_to_millions(buffer_size)}-num_envs={int(num_envs)}-per={per_type}"
+    return f"{prefix}-task={task}-buffsize={_to_millions(buffer_size)}-per={per_type}"
 
 
 def get_shell_script_name(

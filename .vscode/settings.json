@@ -12,5 +12,8 @@
   },
   "ruff.importStrategy": "useBundled",
   "ruff.configuration": "~/pyproject.toml",
-  "ruff.trace.server": "messages"
+  "ruff.trace.server": "messages",
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda",
+  "python-envs.pythonProjects": []
 }

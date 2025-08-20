@@ -54,16 +54,10 @@ def read_wandb_runs(entity, project, save_path: Path, elapsed_time_threshold: in
         if runtime and max(runtime) < elapsed_time_threshold:
             continue
 
-        elapsed_time = [step["elapsed_time"] for step in run.history(keys=["elapsed_time"], samples=100, pandas=False)]
-        if not elapsed_time or max(elapsed_time) < ELAPSED_TIME_THRESHOLD:
-            continue
-
         try:
             config = _get_wandb_config(run.config)
         except ConfigKeyError as e:
-            print(
-                f"Skipping {shell_script_name} due to an error while retrieving config: {e}",
-            )
+            print(f"Skipping {shell_script_name} due to an error while retrieving config: {e}")
             continue
 
         count, eval_returns, global_steps = 0, [], []
@@ -79,14 +73,8 @@ def read_wandb_runs(entity, project, save_path: Path, elapsed_time_threshold: in
             print(f"Skipping {shell_script_name} due to no eval returns found.")
             continue
 
-        successful_runs_dict[run.id] = {
-            **config,
-            "eval_return": eval_returns,
-            "step": global_steps,
-        }
-    print(
-        f"Successfully listed {len(successful_runs_dict)} runs in project '{project}'.",
-    )
+        successful_runs_dict[run.id] = {**config, "eval_return": eval_returns, "step": global_steps}
+    print(f"Successfully listed {len(successful_runs_dict)} runs in project '{project}'.")
 
     with save_path.open("w") as f:
         json.dump(successful_runs_dict, f, indent=4)
@@ -105,15 +93,7 @@ def _project_exists(entity: str, project: str) -> bool:
 
 
 def _get_wandb_config(config):
-    keys = [
-        "task.name",
-        "num_envs",
-        "seed",
-        "algo.batch_size",
-        "algo.actor_lr",
-        "algo.critic_sample_ratio",
-        "algo.pal",
-    ]
+    keys = ["task.name", "num_envs", "seed", "algo.batch_size", "algo.actor_lr", "algo.critic_sample_ratio", "algo.pal"]
     ret_dict = {}
     for key in keys:
         value = config
@@ -140,19 +120,11 @@ def removesuffix(s: str, suffix: str) -> str:
 
 
 class Analyzer:
-    def __init__(
-        self,
-        json_path: Path,
-        eval_threshold_range: tuple,
-        num_eval_points: int = 100,
-    ):
+    def __init__(self, json_path: Path, eval_threshold_range: tuple, num_eval_points: int = 100):
         self.all_runs = self._load_runs(json_path)
         self.utd_inv, self.lr_iter, self.bsize_iter = self._parse_runs(self.all_runs)
 
-        self.eval_return_points = np.linspace(
-            *eval_threshold_range,
-            num=num_eval_points,
-        )
+        self.eval_return_points = np.linspace(*eval_threshold_range, num=num_eval_points)
 
         self.fig = Figure(self.utd_inv, self.eval_return_points)
 
@@ -171,10 +143,7 @@ class Analyzer:
             all_r, all_l = set(r2l), set(l2r)
             set_r = {right for right, lefts in r2l.items() if all_l <= lefts}
             set_l = {left for left, rights in l2r.items() if all_r <= rights}
-            return (
-                set_l.pop(),
-                set_r.pop(),
-            )  # FIXME: assumes only one common left and right
+            return set_l.pop(), set_r.pop()  # FIXME: assumes only one common left and right
 
         utd_set, bsize_set, lr_set, bsize_lr_pair_set = set(), set(), set(), set()
         for run in all_runs.values():
@@ -184,12 +153,8 @@ class Analyzer:
             bsize_lr_pair_set.add((run["algo.batch_size"], run["algo.actor_lr"]))
 
         default_batch_size, default_lr = _find_common_left_right(bsize_lr_pair_set)
-        lr_iter = list(
-            {(default_batch_size, lr) for lr in sorted(lr_set)},
-        )  # lr: variable, bsize: fixed
-        bsize_iter = list(
-            {(bsize, default_lr) for bsize in sorted(bsize_set)},
-        )  # bsize: variable, lr: fixed
+        lr_iter = list({(default_batch_size, lr) for lr in sorted(lr_set)})  # lr: variable, bsize: fixed
+        bsize_iter = list({(bsize, default_lr) for bsize in sorted(bsize_set)})  # bsize: variable, lr: fixed
 
         return sorted(utd_set, reverse=True), lr_iter, bsize_iter
 
@@ -201,22 +166,10 @@ class Analyzer:
                 if not runs:
                     breakpoint()
                 series, minimum_data, max_return = self._get_minimum_data(runs)
-                self.fig.plot_learning_curve(
-                    "lr",
-                    series,
-                    utd_idx=utd_idx,
-                    metric_idx=lr_idx,
-                    metric=lr,
-                )
+                self.fig.plot_learning_curve("lr", series, utd_idx=utd_idx, metric_idx=lr_idx, metric=lr)
                 minimum_data_list.append(minimum_data)
                 self.fig.log("lr", utd_inv, lr, max_return, len(runs))
-            self.fig.log_best(
-                "lr",
-                (
-                    1 / utd_inv,
-                    self.choose_best(minimum_data_list, list(zip(*self.lr_iter))[1]),
-                ),
-            )
+            self.fig.log_best("lr", (1 / utd_inv, self.choose_best(minimum_data_list, list(zip(*self.lr_iter))[1])))
 
             minimum_data_list = []
             for bsize_idx, (bsize, lr) in enumerate(self.bsize_iter):
@@ -224,22 +177,10 @@ class Analyzer:
                 if not runs:
                     breakpoint()
                 series, minimum_data, max_return = self._get_minimum_data(runs)
-                self.fig.plot_learning_curve(
-                    "batch_size",
-                    series,
-                    utd_idx=utd_idx,
-                    metric_idx=bsize_idx,
-                    metric=bsize,
-                )
+                self.fig.plot_learning_curve("batch_size", series, utd_idx=utd_idx, metric_idx=bsize_idx, metric=bsize)
                 minimum_data_list.append(minimum_data)
                 self.fig.log("batch_size", utd_inv, bsize, max_return, len(runs))
-            self.fig.log_best(
-                "batch_size",
-                (
-                    1 / utd_inv,
-                    self.choose_best(minimum_data_list, list(zip(*self.bsize_iter))[0]),
-                ),
-            )
+            self.fig.log_best("batch_size", (1 / utd_inv, self.choose_best(minimum_data_list, list(zip(*self.bsize_iter))[0])))  # noqa: RUF015
 
         self.fig.plot_fit_point()
         self.fig.plot_fit_best()
@@ -254,9 +195,7 @@ class Analyzer:
                     runs = random.choices(_runs, k=len(_runs))
                     _, minimum_data, _ = self._get_minimum_data(runs)
                     minimum_data_list.append(minimum_data)
-                best_lrs.append(
-                    self.choose_best(minimum_data_list, list(zip(*self.lr_iter))[1]),
-                )
+                best_lrs.append(self.choose_best(minimum_data_list, list(zip(*self.lr_iter))[1]))
             self.fig.log_best("lr", (1 / utd_inv, np.mean(best_lrs)), bootstrap=True)
 
             best_bsizes = []
@@ -267,20 +206,12 @@ class Analyzer:
                     runs = random.choices(_runs, k=len(_runs))
                     _, minimum_data, _ = self._get_minimum_data(runs)
                     minimum_data_list.append(minimum_data)
-                best_bsizes.append(
-                    self.choose_best(minimum_data_list, list(zip(*self.bsize_iter))[0]),
-                )
-            self.fig.log_best(
-                "batch_size",
-                (1 / utd_inv, np.mean(best_bsizes)),
-                bootstrap=True,
-            )
+                best_bsizes.append(self.choose_best(minimum_data_list, list(zip(*self.bsize_iter))[0]))  # noqa: RUF015
+            self.fig.log_best("batch_size", (1 / utd_inv, np.mean(best_bsizes)), bootstrap=True)
 
         self.fig.plot_fit_best(bootstrap=True)
 
-        bsize_func = Fit.power_law_fit(
-            *zip(*self.fig.batch_size["log"]["best_bootstrap"]),
-        )
+        bsize_func = Fit.power_law_fit(*zip(*self.fig.batch_size["log"]["best_bootstrap"]))
         lr_func = Fit.power_law_fit(*zip(*self.fig.lr["log"]["best_bootstrap"]))
 
         func = {"lr": lr_func, "batch_size": bsize_func}
@@ -295,25 +226,13 @@ class Analyzer:
         return [run for run in self.all_runs.values() if _is_target(run)]
 
     def _get_minimum_data(self, runs):
-        x_list, y_list = (
-            [np.array(run["step"]) for run in runs],
-            [np.array(run["eval_return"]) for run in runs],
-        )
+        x_list, y_list = [np.array(run["step"]) for run in runs], [np.array(run["eval_return"]) for run in runs]
         x, y, y_std = Fit.linear_average_series(x_list, y_list)
         y_isotonic = Fit.isotonic_fit(x, y)
         x_minimum = [self.get_inverse(x, y_isotonic, y_threshold) for y_threshold in self.eval_return_points]
         y_maximum = max(y_isotonic)
 
-        return (
-            {
-                "data": x,
-                "return": y,
-                "return_std": y_std,
-                "return_isotonic": y_isotonic,
-            },
-            x_minimum,
-            y_maximum,
-        )
+        return {"data": x, "return": y, "return_std": y_std, "return_isotonic": y_isotonic}, x_minimum, y_maximum
 
     @staticmethod
     def get_inverse(x, y_isotonic, y_threshold):
@@ -326,11 +245,7 @@ class Analyzer:
     @staticmethod
     def choose_best(_minimum_data_list, metrics_list):
         minimum_data_list = np.array(_minimum_data_list, dtype=object)
-        minimum_data_list = np.where(
-            np.equal(minimum_data_list, None),
-            np.inf,
-            minimum_data_list,
-        )
+        minimum_data_list = np.where(np.equal(minimum_data_list, None), np.inf, minimum_data_list)
         counter = Counter(minimum_data_list.argmin(axis=0))
         best_idx = counter.most_common(1)[0][0]
         return metrics_list[best_idx]
@@ -359,9 +274,7 @@ class Fit:
         mean_data_points = np.mean([len(x) for x in x_list])
 
         x_interp = np.linspace(x_min, x_max, num=int(mean_data_points))
-        y_interp_list = np.array(
-            [np.interp(x_interp, _x, _y) for _x, _y in zip(x_list, y_list)],
-        )
+        y_interp_list = np.array([np.interp(x_interp, _x, _y) for _x, _y in zip(x_list, y_list)])
 
         return x_interp, y_interp_list.mean(axis=0), y_interp_list.std(axis=0)
 
@@ -375,13 +288,9 @@ class Fit:
         Fit a power law to the data and return the parameters.
         y = ret[1] * (x ** ret[0])
         """
-        x, y = np.array(utd), np.array(metrics, dtype=float)
-        x, y = x[~np.isnan(y)], y[~np.isnan(y)]
-        log_x, log_y = np.log(x), np.log(y)
-
-        if len(log_x) <= 2:  # noqa: PLR2004
-            return {"func": None, "func_str": None}
-
+        x, y = np.array(utd), np.array(metrics)
+        log_x = np.log(x)
+        log_y = np.log(y)
         coeffs = np.polyfit(log_x, log_y, 1)
         return {
             "func": lambda x: np.exp(coeffs[1]) * (x ** coeffs[0]),
@@ -418,26 +327,12 @@ class Figure:
         self.batch_size = {
             "fit": self.init_fit_plot("Batch Size"),
             "learning_curve": self.init_learning_curve_plot(utd_inv_list),
-            "log": {
-                "x_inv": [],
-                "y": [],
-                "max_return": [],
-                "num_seeds": [],
-                "best_point": [],
-                "best_bootstrap": [],
-            },
+            "log": {"x_inv": [], "y": [], "max_return": [], "num_seeds": [], "best_point": [], "best_bootstrap": []},
         }
         self.lr = {
             "fit": self.init_fit_plot("Learning Rate"),
             "learning_curve": self.init_learning_curve_plot(utd_inv_list),
-            "log": {
-                "x_inv": [],
-                "y": [],
-                "max_return": [],
-                "num_seeds": [],
-                "best_point": [],
-                "best_bootstrap": [],
-            },
+            "log": {"x_inv": [], "y": [], "max_return": [], "num_seeds": [], "best_point": [], "best_bootstrap": []},
         }
         self.colors = list(mcolors.TABLEAU_COLORS.values())
         self.eval_range = min(eval_return_points), max(eval_return_points)
@@ -452,13 +347,7 @@ class Figure:
 
     def init_learning_curve_plot(self, utd_inv_list: list):
         # data_step vs returns
-        fig, ax = plt.subplots(
-            1,
-            len(utd_inv_list),
-            figsize=(7 * len(utd_inv_list), 5),
-            sharex=True,
-            sharey=True,
-        )
+        fig, ax = plt.subplots(1, len(utd_inv_list), figsize=(7 * len(utd_inv_list), 5), sharex=True, sharey=True)
         for i, utd_inv in enumerate(utd_inv_list):
             ax[i].set_xlabel("Data Step")
             if i == 0:
@@ -467,27 +356,11 @@ class Figure:
         return fig, ax
 
     def plot_learning_curve(self, plot_type, series, utd_idx, metric_idx, metric):
-        x, y, y_std, y_isotonic = (
-            series["data"],
-            series["return"],
-            series["return_std"],
-            series["return_isotonic"],
-        )
+        x, y, y_std, y_isotonic = series["data"], series["return"], series["return_std"], series["return_isotonic"]
         fig, ax = getattr(self, plot_type)["learning_curve"]
         ax[utd_idx].plot(x, y, alpha=0.5, color=self.colors[metric_idx], linestyle="--")
-        ax[utd_idx].fill_between(
-            x,
-            y - y_std,
-            y + y_std,
-            alpha=0.1,
-            color=self.colors[metric_idx],
-        )
-        ax[utd_idx].plot(
-            x,
-            y_isotonic,
-            color=self.colors[metric_idx],
-            label=f"{plot_type}: {metric}",
-        )
+        ax[utd_idx].fill_between(x, y - y_std, y + y_std, alpha=0.1, color=self.colors[metric_idx])
+        ax[utd_idx].plot(x, y_isotonic, color=self.colors[metric_idx], label=f"{plot_type}: {metric}")
         ax[utd_idx].yaxis.grid(visible=True, linestyle="--", color="gray", linewidth=1)
         ax[utd_idx].legend()
 
@@ -496,10 +369,7 @@ class Figure:
 
     def log(self, plot_type, x_inv, y, max_return, num_seeds):
         log = getattr(self, plot_type)["log"]
-        for key, value in zip(
-            ["x_inv", "y", "max_return", "num_seeds"],
-            [x_inv, y, max_return, num_seeds],
-        ):
+        for key, value in zip(["x_inv", "y", "max_return", "num_seeds"], [x_inv, y, max_return, num_seeds]):
             log[key].append(value)
 
     def log_best(self, plot_type, best_metrics_tuple, *, bootstrap: bool = False):
@@ -521,21 +391,9 @@ class Figure:
                 zorder=3,
             )
             for x in set(log["x_inv"]):
-                ax.axvline(
-                    x=1 / x,
-                    color="black",
-                    linestyle="dotted",
-                    linewidth=1,
-                    zorder=0,
-                )
+                ax.axvline(x=1 / x, color="black", linestyle="dotted", linewidth=1, zorder=0)
             for y in set(log["y"]):
-                ax.axhline(
-                    y=y,
-                    color="black",
-                    linestyle="dotted",
-                    linewidth=1,
-                    zorder=0,
-                )
+                ax.axhline(y=y, color="black", linestyle="dotted", linewidth=1, zorder=0)
             ax.set_xticks([1 / x for x in log["x_inv"]])
             ax.set_xticklabels([f"1/{int(x)}" for x in log["x_inv"]])
             fig.colorbar(sc, ax=ax, label="Max Return")
@@ -545,23 +403,9 @@ class Figure:
             fig, ax = getattr(self, plot_type)["fit"]
             log = getattr(self, plot_type)["log"]
             if not bootstrap:
-                ax.scatter(
-                    *zip(*log["best_point"]),
-                    c="blue",
-                    s=432,
-                    zorder=1,
-                    alpha=0.5,
-                    label="Point Estimate",
-                )
+                ax.scatter(*zip(*log["best_point"]), c="blue", s=432, zorder=1, alpha=0.5, label="Point Estimate")
             else:
-                ax.scatter(
-                    *zip(*log["best_bootstrap"]),
-                    c="red",
-                    s=432,
-                    zorder=2,
-                    alpha=0.5,
-                    label="Bootstrap Estimate",
-                )
+                ax.scatter(*zip(*log["best_bootstrap"]), c="red", s=432, zorder=2, alpha=0.5, label="Bootstrap Estimate")
 
     def plot_fit_func(self, func):
         for plot_type in ["batch_size", "lr"]:
@@ -569,15 +413,7 @@ class Figure:
             utd_inv = getattr(self, plot_type)["log"]["x_inv"]
             utd_min, utd_max = 1 / max(utd_inv), 1 / min(utd_inv)
             x = np.linspace(utd_min, utd_max, 100)
-            ax.plot(
-                x,
-                func[plot_type]["func"](x),
-                linestyle="--",
-                zorder=4,
-                color="orange",
-                linewidth=2,
-                label="Fit Function",
-            )
+            ax.plot(x, func[plot_type]["func"](x), linestyle="--", zorder=4, color="orange", linewidth=2, label="Fit Function")
             ax.set_title(ax.get_title() + f"\n{func[plot_type]['func_str']}")
 
     def save(self, base_dir: Path):
@@ -588,18 +424,9 @@ class Figure:
             fig.savefig(base_dir / f"step1-{plot_type}_learning_curve.png")
 
             fig, ax = getattr(self, plot_type)["fit"]
-            legend = ax.legend(
-                loc="upper center",
-                bbox_to_anchor=(0.5, -0.15),
-                ncol=3,
-                frameon=False,
-            )
+            legend = ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=False)
             fig.tight_layout()
-            fig.savefig(
-                base_dir / f"step1-{plot_type}_fit.png",
-                bbox_extra_artists=(legend,),
-                bbox_inches="tight",
-            )
+            fig.savefig(base_dir / f"step1-{plot_type}_fit.png", bbox_extra_artists=(legend,), bbox_inches="tight")
 
         plt.close("all")
 
