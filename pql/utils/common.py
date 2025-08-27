@@ -25,7 +25,10 @@ def init_wandb(cfg):
     if cfg.artifact is not None:
         wandb_id = cfg.artifact.split("/")[-1].split(":")[0]
         wandb_run = wandb.init(
-            **wandb_kwargs, config=wandb_cfg, id=wandb_id, resume="must"
+            **wandb_kwargs,
+            config=wandb_cfg,
+            id=wandb_id,
+            resume="must",
         )
     else:
         wandb_run = wandb.init(**wandb_kwargs, config=wandb_cfg)
@@ -179,6 +182,7 @@ def preprocess_cfg(cfg):
     task_max_time = dict(
         AllegroHand=4800,
         Ant=3600,
+        # Ant=600,
         Humanoid=3600,
         Anymal=1800,
         FrankaCubeStack=3600,
@@ -281,7 +285,7 @@ def peprocess_PPO_cfg(cfg):
         cfg.algo.update_times = 5
     else:
         logger.warning(
-            f"Cannot find config for PPO on task:{cfg.task}. Using default config."
+            f"Cannot find config for PPO on task:{cfg.task}. Using default config.",
         )
 
 

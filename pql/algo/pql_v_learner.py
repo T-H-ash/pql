@@ -29,14 +29,15 @@ class PQLVLearner:
         self.action_dim = action_dim
         print(",".join([str(i) for i in cfg.available_gpus]))
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
-            [str(i) for i in cfg.available_gpus]
+            [str(i) for i in cfg.available_gpus],
         )
         self.device = torch.device(f"cuda:{self.cfg.algo.v_learner_gpu}")
 
         if self.cfg.algo.distl and "Distributional" not in self.cfg.algo.cri_class:
             self.cfg.algo.cri_class = "Distributional" + self.cfg.algo.cri_class
         cri_class = load_class_from_path(
-            self.cfg.algo.cri_class, model_name_to_path[self.cfg.algo.cri_class]
+            self.cfg.algo.cri_class,
+            model_name_to_path[self.cfg.algo.cri_class],
         )
         if self.cfg.algo.distl:
             self.critic = cri_class(
@@ -58,7 +59,8 @@ class PQLVLearner:
         if self.cfg.artifact is not None:
             load_model(self.critic, "critic", cfg)
         self.critic_optimizer = torch.optim.AdamW(
-            self.critic.parameters(), self.cfg.algo.critic_lr
+            self.critic.parameters(),
+            self.cfg.algo.critic_lr,
         )
         self.critic_target = deepcopy(self.critic)
         self.actor = None
@@ -67,6 +69,7 @@ class PQLVLearner:
             capacity=int(cfg.algo.memory_size),
             obs_dim=self.obs_dim,
             action_dim=self.action_dim,
+            storage_sampling_probability=cfg.algo.storage_sampling_probability,
             device=self.device,
         )
         self.loss_tracker = Tracker(5)
@@ -95,7 +98,8 @@ class PQLVLearner:
     def learn(self):
         if self.actor is not None:
             obs, action, reward, next_obs, done = self.memory.sample_batch(
-                self.cfg.algo.batch_size, device=self.device
+                self.cfg.algo.batch_size,
+                device=self.device,
             )
             if self.cfg.algo.obs_norm:
                 obs = normalize(obs, self.normalize_tuple)
@@ -105,7 +109,8 @@ class PQLVLearner:
                 next_actions = self.get_tgt_policy_actions(next_obs)
                 if self.cfg.algo.distl:
                     target_Q1, target_Q2 = self.critic_target.get_q1_q2(
-                        next_obs, next_actions
+                        next_obs,
+                        next_actions,
                     )
                     target_Q1_projected = projection(
                         next_dist=target_Q1,
@@ -132,27 +137,19 @@ class PQLVLearner:
                     target_Q = torch.min(target_Q1_projected, target_Q2_projected)
                 else:
                     target_Q = self.critic_target.get_q_min(next_obs, next_actions)
-                    target_Q = (
-                        reward
-                        + (1 - done)
-                        * (self.cfg.algo.gamma**self.cfg.algo.nstep)
-                        * target_Q
-                    )
+                    target_Q = reward + (1 - done) * (self.cfg.algo.gamma**self.cfg.algo.nstep) * target_Q
 
             current_Q1, current_Q2 = self.critic.get_q1_q2(obs, action)
 
             critic_loss = self.loss_fnc(current_Q1, target_Q) + self.loss_fnc(
-                current_Q2, target_Q
+                current_Q2,
+                target_Q,
             )
             if self.cfg.algo.pal:
                 td_loss1 = current_Q1 - target_Q
                 td_loss2 = current_Q2 - target_Q
                 critic_loss /= (
-                    torch.max(td_loss1.abs(), td_loss2.abs())
-                    .clamp(min=self.min_priority)
-                    .pow(self.alpha)
-                    .mean()
-                    .detach()
+                    torch.max(td_loss1.abs(), td_loss2.abs()).clamp(min=self.min_priority).pow(self.alpha).mean().detach()
                 )
 
             self.optimizer_update(self.critic_optimizer, critic_loss)
@@ -191,11 +188,17 @@ class PQLVLearner:
             self.min_priority * td.abs().pow(1.0 + self.alpha) / (1.0 + self.alpha),
         ).mean()
 
+    def get_storage(self):
+        return self.memory.storage.export()
+
+    def get_storage_size(self):
+        return self.memory.storage.cur_capacity
+
 
 @ray.remote
 def asyn_v_learner(critic, cfg):
     logger.warning(
-        f"V-Learner starts running asynchronously on GPU {cfg.algo.v_learner_gpu}"
+        f"V-Learner starts running asynchronously on GPU {cfg.algo.v_learner_gpu}",
     )
     while True:
         sleep_time = ray.get(critic.learn.remote())

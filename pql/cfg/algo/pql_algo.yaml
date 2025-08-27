@@ -5,6 +5,7 @@ defaults:
 name: "PQL"
 horizon_len: 1
 memory_size: 5e6
+storage_sampling_probability: 4e-3
 batch_size: 8192
 nstep: 3
 tau: 0.05

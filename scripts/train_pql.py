@@ -1,5 +1,6 @@
 import isaacgym  # isort: skip  # noqa: F401
 
+import pickle
 import time
 from collections import deque
 from copy import deepcopy
@@ -8,11 +9,11 @@ from itertools import count
 import hydra
 import ray
 import torch
-import wandb
 from loguru import logger
 from omegaconf import DictConfig
 
 import pql
+import wandb
 from pql.algo.pql_actor import PQLActor
 from pql.algo.pql_p_learner import PQLPLearner, asyn_p_learner
 from pql.algo.pql_v_learner import PQLVLearner, asyn_v_learner
@@ -203,7 +204,8 @@ def main(cfg: DictConfig):
             "train/critic_update_times": critic_update_times,
             "train/actor_update_times": actor_update_times,
             "train/global_steps": global_steps,
-            "train/utd_ratio": critic_update_times / (global_steps / int(cfg.num_envs)),
+            "train/utd_ratio": critic_update_times / global_steps,
+            "train/storage_size": ray.get(pql_v_learner.get_storage_size.remote()),
         }
         pql_actor.add_info_tracker_log(log_info)
 
@@ -230,6 +232,17 @@ def main(cfg: DictConfig):
 
         if evaluator.check_if_should_stop(global_steps):
             break
+
+    storage_export = ray.get(pql_v_learner.get_storage.remote())
+    with open("storage_export.pkl", "wb") as f:
+        print("Exporting storage to storage_export.pkl")
+        pickle_data = {
+            "storage": storage_export,
+            "replay_buffer_size": cfg.algo.memory_size,
+            "global_data_steps": global_steps,
+            "storage_sampling_probability": cfg.algo.storage_sampling_probability,
+        }
+        pickle.dump(pickle_data, f)
 
 
 if __name__ == "__main__":
