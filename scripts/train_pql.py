@@ -203,7 +203,8 @@ def main(cfg: DictConfig):
             "train/critic_update_times": critic_update_times,
             "train/actor_update_times": actor_update_times,
             "train/global_steps": global_steps,
-            "train/utd_ratio": critic_update_times / (global_steps / int(cfg.num_envs)),
+            "train/utd_ratio": critic_update_times / global_steps,
+            "train/utd_ratio_inv": global_steps / critic_update_times,
         }
         pql_actor.add_info_tracker_log(log_info)
 
