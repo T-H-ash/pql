@@ -42,10 +42,12 @@ class GridParam:
     wandb_project_key: str
 
     # x-axis
-    UTD_RATIO_INVERSE = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
+    # UTD_RATIO_INVERSE = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
+    UTD_RATIO_INVERSE = [64, 256, 1024, 4096, 16384]
 
     # seed
-    SEED = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+    # SEED = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+    SEED = [42, 43, 44, 45, 46]
 
     def __post_init__(self):
         """
@@ -58,7 +60,7 @@ class GridParam:
 
             # other configs
             self.TASK = task
-            self.BUFFER_SIZE = int(float(buffsize.rstrip("M")) * 1_000_000)
+            self.BUFFER_SIZE = int(float(buffsize.rstrip("M").replace("_", ".")) * 1_000_000)
             self.NUM_ENVS = int(num_envs)
 
             if per == "pal":

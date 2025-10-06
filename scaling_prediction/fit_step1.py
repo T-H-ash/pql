@@ -391,26 +391,39 @@ class Fit:
     @staticmethod
     def generalized_power_law_fit(utd, metrics):
         """
-        Fit y = a * (1 + (x/b)^c) to the data and return the parameters and formula string.
-        Handles invalid values to avoid RuntimeWarning.
+        Fit y = C + A * x^B to the data using non-linear least squares.
+
+        Returns a dict with keys "func" (callable) and "func_str" (human string).
+        If fitting fails or there is insufficient data, returns {"func": None, "func_str": None}.
         """
-        x = np.array(utd)
-        y = np.array(metrics)
+        x = np.array(utd, dtype=float)
+        y = np.array(metrics, dtype=float)
 
-        def func(x, a, b, c):
-            # Ensure b > 0 and x/b > 0 to avoid invalid values
-            x = np.asarray(x)
-            b = np.abs(b) + 1e-8  # avoid division by zero or negative
-            return a * (1 + np.power(np.clip(x / b, 1e-8, None), c))
+        # remove nan entries
+        mask = ~np.isnan(y)
+        x = x[mask]
+        y = y[mask]
 
-        # Initial guess: a=max(y), b=0.01, c=1
-        popt, _ = curve_fit(func, x, y, p0=[y.max(), 0.01, 1.0], maxfev=100000)
-        a, b, c = popt
-        formula = f"y = {a} * (1 + (x/{b})^{c})"
-        return {
-            "func": lambda x: a * (1 + np.power(np.clip(x / (b if b > 0 else 1e-8), 1e-8, None), c)),
-            "func_str": formula,
-        }
+        if len(x) < 3:
+            return {"func": None, "func_str": None}
+
+        def model(xx, c, a, b):
+            xx_pos = np.clip(xx, 1e-12, None)
+            return c + a * np.power(xx_pos, b)
+
+        # sensible initial guesses
+        c0 = float(np.min(y))
+        a0 = float(np.max(y) - c0)
+        b0 = 1.0
+
+        try:
+            popt, _ = curve_fit(model, x, y, p0=[c0, a0, b0], maxfev=100000)
+        except Exception:
+            return {"func": None, "func_str": None}
+
+        c, a, b = popt
+        func_str = f"y = {c} + {a} * x**{b}"
+        return {"func": lambda xx: c + a * np.power(np.clip(xx, 1e-12, None), b), "func_str": func_str}
 
 
 class Figure:

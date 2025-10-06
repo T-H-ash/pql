@@ -67,6 +67,7 @@ class Analyzer:
         func_dict = {}
         for eval_idx, reward in enumerate(self.eval_return_points):
             data_func = Fit.power_law_fit(utd=utd, metrics=[min_data[eval_idx] for min_data in minimum_data])
+            # data_func = Fit.generalized_power_law_fit(utd=utd, metrics=[min_data[eval_idx] for min_data in minimum_data])
             print(f"Reward: {reward}, Function: {data_func['func_str']}")
             func_dict[reward] = data_func["func"]
 
@@ -74,7 +75,7 @@ class Analyzer:
 
         # Use the batch_size_function from step1_fit
         batch_size_function = self.step1_fit.batch_size_function
-        self.fig.plot_compute_vs_data_fit(func_dict, batch_size_function)
+        self.fig.plot_compute_vs_data_fit(func_dict, batch_size_function, devide_factor=1024)
 
     def _extract_runs(self, utd_inv: float):
         def _is_target(run: dict):
@@ -180,7 +181,7 @@ class Figure:
         ax[1].set_xscale("log")
         ax[1].set_yscale("log")
 
-    def plot_compute_vs_data_fit(self, func_dict, batch_size_function, model_size=179592):
+    def plot_compute_vs_data_fit(self, func_dict, batch_size_function, model_size=179592, devide_factor=1):
         """
         Plots compute (CJ) vs data for each reward threshold.
         ax[0]: linear scale, ax[1]: log-log scale
@@ -192,6 +193,7 @@ class Figure:
         log = self.data["log"]
         utd_arr = 1 / np.array(log["utd_inv"])
         min_data_arr = np.array(log["minimum_data"])
+        min_data_arr = np.where(min_data_arr is None, np.nan, min_data_arr).astype(float) / devide_factor  # Adjust if needed
         cmap = plt.get_cmap("viridis")
         norm = plt.Normalize(vmin=min(self.eval_return_points), vmax=max(self.eval_return_points))
         print("CJ = 10 * MODEL_SIZE * batch_size_function(utd) * utd * minimum_data")
@@ -215,7 +217,7 @@ class Figure:
                 all_c.append(reward)
 
             # Fitted curve
-            min_curve = func(utds)
+            min_curve = func(utds) / devide_factor
             cj_curve = 10 * model_size * batch_size_function(utds) * utds * min_curve
             curves.append((min_curve, cj_curve, color))
 
@@ -227,7 +229,8 @@ class Figure:
                 ax[j].plot(min_curve, cj_curve, linestyle="-", color=color, alpha=0.7)
         ax[0].set(xlabel="Minimum Data Step", ylabel="Compute (CJ)", title="Compute vs Data (Linear)")
         ax[1].set(
-            xlabel="Minimum Data Step",
+            # xlabel="Minimum Data Step",
+            xlabel="Minimum Env Step",
             ylabel="Compute (CJ)",
             title="Compute vs Data (LogLog)",
             xscale="log",
@@ -274,11 +277,25 @@ def main():
 
 
 def batch_run():
+    # WANDB_PROJECTS = [
+    #     "scales_00-task=Ant-buffsize=1M-num_envs=1024-per=none-step2",
+    #     "scales_00-task=Ant-buffsize=1M-num_envs=1024-per=pal-step2",
+    #     "scales_00-task=Ant-buffsize=4M-num_envs=4096-per=none-step2",
+    #     "scales_00-task=Ant-buffsize=4M-num_envs=4096-per=pal-step2",
+    # ]
+
+    # WANDB_PROJECTS = [
+    #     "scales_01-task=Ant-buffsize=1M-num_envs=1024-per=none-step2",
+    #     "scales_01-task=Ant-buffsize=1M-num_envs=4096-per=none-step2",
+    #     "scales_01-task=Ant-buffsize=4M-num_envs=4096-per=none-step2",
+    #     "scales_01-task=Ant-buffsize=4M-num_envs=16384-per=none-step2",
+    # ]
+
     WANDB_PROJECTS = [
         "scales_01-task=Ant-buffsize=1M-num_envs=1024-per=none-step2",
-        "scales_01-task=Ant-buffsize=1M-num_envs=4096-per=none-step2",
-        "scales_01-task=Ant-buffsize=4M-num_envs=4096-per=none-step2",
-        "scales_01-task=Ant-buffsize=4M-num_envs=16384-per=none-step2",
+        # "scales_01-task=Ant-buffsize=1M-num_envs=4096-per=none-step2",
+        # "scales_01-task=Ant-buffsize=4M-num_envs=4096-per=none-step2",
+        # "scales_01-task=Ant-buffsize=4M-num_envs=16384-per=none-step2",
     ]
 
     args = get_args()
@@ -297,12 +314,15 @@ def batch_run():
             print(f"Use existing runs from {json_path}")
 
         step1_fit = get_fit_functions(base_dir, args.step1_fit_filename)
-        analyzer = Analyzer(json_path, step1_fit, eval_threshold_range=(3000.0, 10000.0), num_eval_points=200)
+        analyzer = Analyzer(json_path, step1_fit, eval_threshold_range=(3000.0, 10000.0), num_eval_points=100)
         analyzer.run_minimum_data_fit()
 
-        analyzer.fig.set_lims(xlim=(7e5, 8e8), ylim=(5e13, 1e17))
-        # analyzer.fig.set_lims(xlim=(1e7, 1e8), ylim=(1e14, 1e16))
-        analyzer.fig.save(base_dir, filename_prefix="lim_")
+        # analyzer.fig.set_lims(xlim=(7e5, 3e8), ylim=(4e13, 2e16))  # scales-00 系
+        # analyzer.fig.set_lims(xlim=(7e5, 8e8), ylim=(5e13, 1e17))  # scales-01 全体が写る
+        # analyzer.fig.set_lims(xlim=(1e7, 1e8), ylim=(1e14, 1e16))  # scales-01 タイト
+
+        analyzer.fig.set_lims(xlim=(7e1, 8e4), ylim=(1e9, 1e14))  # scales-01 全体が写る、補正あり
+        analyzer.fig.save(base_dir, filename_prefix="lim_envstep_")
 
 
 if __name__ == "__main__":

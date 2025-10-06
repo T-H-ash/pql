@@ -170,10 +170,7 @@ def main(cfg: DictConfig):
                 elif critic_wait_time == 0:
                     sim_wait_time = counter[0]["sim_wait_time"] - wait_time
                 else:
-                    critic_wait_time = max(
-                        0,
-                        counter[0]["critic_wait_time"] + wait_time,
-                    )
+                    critic_wait_time = max(0, counter[0]["critic_wait_time"] + wait_time)
 
                 wait_time = critic_unit_time * cfg.algo.critic_actor_ratio - actor_unit_time
                 if wait_time > 0:
@@ -203,9 +200,15 @@ def main(cfg: DictConfig):
             "train/critic_update_times": critic_update_times,
             "train/actor_update_times": actor_update_times,
             "train/global_steps": global_steps,
-            "train/utd_ratio": critic_update_times / global_steps,
-            "train/utd_ratio_inv": global_steps / critic_update_times,
         }
+
+        if global_steps > 10 and critic_update_times > 10:
+            log_info.update(
+                {
+                    "train/utd_ratio": critic_update_times / global_steps,
+                    "train/utd_ratio_inv": global_steps / critic_update_times,
+                },
+            )
         pql_actor.add_info_tracker_log(log_info)
 
         if evaluator.parent.poll():
