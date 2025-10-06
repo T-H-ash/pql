@@ -36,6 +36,9 @@ select = ["ALL"]
 ignore = ["D", "TD", "ANN", "INP001", "T201", "BLE001", "RUF012", "B905"]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # allow unused variables when underscore-prefixed
 
+[tool.ruff.lint.isort]
+known-third-party = ["wandb"]
+
 [tool.ruff.lint.extend-per-file-ignores]
 
 [tool.ruff.lint.pydocstyle]

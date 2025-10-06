@@ -1,11 +1,15 @@
+import json
+
 import isaacgym  # isort: skip  # noqa: F401
 
 import time
 from collections import deque
 from copy import deepcopy
 from itertools import count
+from pathlib import Path
 
 import hydra
+import numpy as np
 import ray
 import torch
 import wandb
@@ -232,8 +236,66 @@ def main(cfg: DictConfig):
                 step=global_steps,
             )
 
+            # log buffer memory and other metrics
+            buffer_memory_id = pql_v_learner.get_memory.remote()
+            buffer_memory = ray.get(buffer_memory_id)
+            quantile_ratio = 0.96
+            buffer_json = save_buffer_memory(cfg, buffer_memory, quantile_ratio=quantile_ratio)
+            buffer_path = Path("distribution") / f"{critic_update_times:07}-buffer-{int(quantile_ratio * 100)}.json"
+            buffer_path.parent.mkdir(parents=True, exist_ok=True)
+            with buffer_path.open("w") as fp:
+                json.dump(buffer_json, fp)
+
+            # online rollout data
+            online_buffer_json = collect_on_policy_rollout_data(cfg, env, pql_actor, pql_v_learner)
+            buffer_path = Path("distribution") / f"{critic_update_times:07}-online-{int(quantile_ratio * 100)}.json"
+            buffer_path.parent.mkdir(parents=True, exist_ok=True)
+            with buffer_path.open("w") as fp:
+                json.dump(online_buffer_json, fp)
+
         if evaluator.check_if_should_stop(global_steps):
             break
+
+
+def save_buffer_memory(cfg, buffer_memory, quantile_ratio=0.96):
+    buffer = {"reward": to_histogram(buffer_memory.buf_reward.cpu().numpy(), ratio=quantile_ratio)}
+    if cfg.log_q:
+        buffer["mean_q"] = to_histogram(buffer_memory.buf_meanq.cpu().numpy(), ratio=quantile_ratio)
+        buffer["target_q"] = to_histogram(buffer_memory.buf_targetq.cpu().numpy(), ratio=quantile_ratio)
+
+    return buffer
+
+
+def collect_on_policy_rollout_data(cfg, env, pql_actor, pql_v_learner, quantile_ratio=0.96):
+    _, v_data, _ = pql_actor.explore_env(env, 100, random=False)
+    _obs, _actions, rewards, _next_obs, _dones = v_data
+
+    q_id = pql_v_learner.calc_q_for_vis.remote(v_data)
+    mean_q, target_q = ray.get(q_id)
+
+    buffer = {"reward": to_histogram(rewards.cpu().numpy(), ratio=quantile_ratio)}
+    if cfg.log_q:
+        buffer["mean_q"] = to_histogram(mean_q.cpu().numpy(), ratio=quantile_ratio)
+        buffer["target_q"] = to_histogram(target_q.cpu().numpy(), ratio=quantile_ratio)
+
+    return buffer
+
+
+def to_histogram(data, bins=1000, ratio=0.96, weights=None):
+    # Calculate the quantiles to remove outliers
+    lower_quantile = (1 - ratio) / 2
+    upper_quantile = 1 - lower_quantile
+
+    # Get the quantile values
+    lower_bound = np.quantile(data, lower_quantile)
+    upper_bound = np.quantile(data, upper_quantile)
+
+    # Filter data to keep only the middle portion
+    filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
+
+    # Create histogram of filtered data
+    hist, edges = np.histogram(filtered_data, bins=bins, weights=weights)
+    return {"hist": hist.tolist(), "edges": edges.tolist()}
 
 
 if __name__ == "__main__":
