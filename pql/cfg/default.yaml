@@ -37,5 +37,6 @@ info_track_step: null # ['last', 'all-episode', 'all-step'], whether to track th
 
 artifact: null
 
+log_distribution: True
 log_q: True
 

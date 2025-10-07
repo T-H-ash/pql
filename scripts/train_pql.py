@@ -170,9 +170,9 @@ def main(cfg: DictConfig):
                     if sim_wait_time == 0:
                         critic_wait_time = counter[0]["critic_wait_time"] + wait_time
                     else:
-                        sim_wait_time = max(0, counter[0]["sim_wait_time"] - wait_time)
+                        sim_wait_time = max(0, counter[0]["sim_wait_time"] - wait_time * cfg.algo.critic_sample_ratio)
                 elif critic_wait_time == 0:
-                    sim_wait_time = counter[0]["sim_wait_time"] - wait_time
+                    sim_wait_time = counter[0]["sim_wait_time"] - wait_time * cfg.algo.critic_sample_ratio
                 else:
                     critic_wait_time = max(0, counter[0]["critic_wait_time"] + wait_time)
 
@@ -236,22 +236,23 @@ def main(cfg: DictConfig):
                 step=global_steps,
             )
 
-            # log buffer memory and other metrics
-            buffer_memory_id = pql_v_learner.get_memory.remote()
-            buffer_memory = ray.get(buffer_memory_id)
-            quantile_ratio = 0.96
-            buffer_json = save_buffer_memory(cfg, buffer_memory, quantile_ratio=quantile_ratio)
-            buffer_path = Path("distribution") / f"{critic_update_times:07}-buffer-{int(quantile_ratio * 100)}.json"
-            buffer_path.parent.mkdir(parents=True, exist_ok=True)
-            with buffer_path.open("w") as fp:
-                json.dump(buffer_json, fp)
+            if cfg.log_distribution:
+                # log buffer memory and other metrics
+                buffer_memory_id = pql_v_learner.get_memory.remote()
+                buffer_memory = ray.get(buffer_memory_id)
+                quantile_ratio = 0.96
+                buffer_json = save_buffer_memory(cfg, buffer_memory, quantile_ratio=quantile_ratio)
+                buffer_path = Path("distribution") / f"{critic_update_times:07}-buffer-{int(quantile_ratio * 100)}.json"
+                buffer_path.parent.mkdir(parents=True, exist_ok=True)
+                with buffer_path.open("w") as fp:
+                    json.dump(buffer_json, fp)
 
-            # online rollout data
-            online_buffer_json = collect_on_policy_rollout_data(cfg, env, pql_actor, pql_v_learner)
-            buffer_path = Path("distribution") / f"{critic_update_times:07}-online-{int(quantile_ratio * 100)}.json"
-            buffer_path.parent.mkdir(parents=True, exist_ok=True)
-            with buffer_path.open("w") as fp:
-                json.dump(online_buffer_json, fp)
+                # online rollout data
+                online_buffer_json = collect_on_policy_rollout_data(cfg, env, pql_actor, pql_v_learner)
+                buffer_path = Path("distribution") / f"{critic_update_times:07}-online-{int(quantile_ratio * 100)}.json"
+                buffer_path.parent.mkdir(parents=True, exist_ok=True)
+                with buffer_path.open("w") as fp:
+                    json.dump(online_buffer_json, fp)
 
         if evaluator.check_if_should_stop(global_steps):
             break
